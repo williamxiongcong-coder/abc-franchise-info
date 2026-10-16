@@ -418,8 +418,7 @@
     form.addEventListener('submit', function(e){
       if (form.dataset.pdfDone) return;
       e.preventDefault();
-      var em = (form.querySelector('input[name="email"]')||{}).value || '';
-      if (em) { var cc = form.querySelector('input[name="_cc"]'); if (!cc) { cc = document.createElement('input'); cc.type = 'hidden'; cc.name = '_cc'; form.appendChild(cc); } cc.value = em; }
+
       var deed = document.querySelector('article');
       if (TYPE === 'Confidentiality Agreement' && deed) {
         var sigEl = form.querySelector('input[name="electronic_signature"]');
