@@ -162,7 +162,7 @@
     var BRAND = (form.querySelector('input[name="brand"]')||{}).value || 'ABC Franchise';
     var TYPE = (form.querySelector('input[name="form_type"]')||{}).value === 'confidentiality-agreement' ? 'Confidentiality Agreement' : 'Franchise Application';
     var ver = document.createElement('input'); ver.type = 'hidden'; ver.name = 'agreement_version';
-    ver.value = TYPE + ' as published at ' + location.href + ' (page version 2026-10-16)'; form.appendChild(ver);
+    ver.value = TYPE + ' terms, page version 2026-10-16'; form.appendChild(ver);
     form.addEventListener('submit', function(e){
       if (form.dataset.pdfDone) return;
       e.preventDefault();
@@ -172,7 +172,7 @@
         var sigEl = form.querySelector('input[name="electronic_signature"]');
         var ft = form.querySelector('textarea[name="signed_agreement_full_text"]');
         if (!ft) { ft = document.createElement('textarea'); ft.name = 'signed_agreement_full_text'; ft.style.display = 'none'; form.appendChild(ft); }
-        ft.value = deed.innerText + '\n\n--- ELECTRONICALLY ACCEPTED ---\nSignature: ' + (sigEl ? sigEl.value : '') + '\nDate: ' + new Date().toISOString() + '\nPage: ' + location.href;
+        ft.value = deed.innerText + '\n\n--- ELECTRONICALLY ACCEPTED ---\nSignature: ' + (sigEl ? sigEl.value : '') + '\nDate: ' + new Date().toISOString();
       }
       var btn = form.querySelector('button[type="submit"]'); btn.disabled = true; btn.textContent = 'Preparing your PDF copy…';
       try {
