@@ -406,45 +406,57 @@
   </div>
 </footer>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
   var AD = document.getElementById('accepted-date'); if (AD) AD.value = new Date().toISOString();
   (function(){
     var form = document.querySelector('form[action*="formsubmit"]'); if (!form) return;
     var BRAND = (form.querySelector('input[name="brand"]')||{}).value || 'ABC Franchise';
     var TYPE = (form.querySelector('input[name="form_type"]')||{}).value === 'confidentiality-agreement' ? 'Confidentiality Agreement' : 'Franchise Application';
+    var ver = document.createElement('input'); ver.type = 'hidden'; ver.name = 'agreement_version';
+    ver.value = TYPE + ' as published at ' + location.href + ' (page version 2026-10-16)'; form.appendChild(ver);
     form.addEventListener('submit', function(e){
       if (form.dataset.pdfDone) return;
       e.preventDefault();
-      var btn = form.querySelector('button[type="submit"]');
-      btn.disabled = true; btn.textContent = 'Preparing your PDF copy…';
-      var wrap = document.createElement('div');
-      wrap.style.cssText = 'font-family:Georgia,serif;color:#111;padding:24px;max-width:700px;background:#fff';
-      var h = '<h1 style="font-size:20px;margin:0 0 4px">' + BRAND + ' — ' + TYPE + '</h1>'
-        + '<p style="font-size:11px;color:#555;margin:0 0 16px">Recorded ' + new Date().toLocaleString() + ' · info.abcfranchise.com.au · ABC Franchise Pty Ltd, Sydney</p>';
+      var em = (form.querySelector('input[name="email"]')||{}).value || '';
+      if (em) { var cc = form.querySelector('input[name="_cc"]'); if (!cc) { cc = document.createElement('input'); cc.type = 'hidden'; cc.name = '_cc'; form.appendChild(cc); } cc.value = em; }
       var deed = document.querySelector('article');
-      if (deed) h += '<div style="font-size:10.5px;line-height:1.6;border:1px solid #ccc;padding:12px;margin-bottom:16px">' + deed.innerHTML + '</div>';
-      h += '<h2 style="font-size:14px;margin:0 0 8px">Submitted details</h2><table style="font-size:12px;border-collapse:collapse;width:100%">';
-      Array.prototype.forEach.call(form.elements, function(el){
-        if (!el.name || el.name.charAt(0) === '_') return;
-        if (el.type === 'hidden' && ['brand','form_type','accepted_date'].indexOf(el.name) < 0) return;
-        var v = el.type === 'checkbox' ? (el.checked ? 'Yes' : 'No')
-              : el.type === 'radio' ? (el.checked ? el.value : null)
-              : el.value;
-        if (v === null || v === '') return;
-        h += '<tr><td style="border:1px solid #ddd;padding:4px 8px;font-weight:bold;width:40%">' + el.name.replace(/_/g,' ') + '</td><td style="border:1px solid #ddd;padding:4px 8px">' + String(v).replace(/</g,'&lt;') + '</td></tr>';
-      });
-      h += '</table><p style="font-size:10px;color:#777;margin-top:14px">Keep this document for your records. This copy was generated in your browser at the moment of submission.</p>';
-      wrap.innerHTML = h;
-      html2pdf().set({
-        margin: 10,
-        filename: BRAND.replace(/[^A-Za-z0-9]+/g,'-') + '-' + TYPE.replace(/[^A-Za-z0-9]+/g,'-') + '-' + new Date().toISOString().slice(0,10) + '.pdf',
-        image: {type:'jpeg', quality:0.95},
-        html2canvas: {scale:2},
-        jsPDF: {unit:'mm', format:'a4'}
-      }).from(wrap).save()
-        .catch(function(){})
-        .then(function(){ form.dataset.pdfDone = '1'; form.submit(); });
+      if (TYPE === 'Confidentiality Agreement' && deed) {
+        var sigEl = form.querySelector('input[name="electronic_signature"]');
+        var ft = form.querySelector('textarea[name="signed_agreement_full_text"]');
+        if (!ft) { ft = document.createElement('textarea'); ft.name = 'signed_agreement_full_text'; ft.style.display = 'none'; form.appendChild(ft); }
+        ft.value = deed.innerText + '\n\n--- ELECTRONICALLY ACCEPTED ---\nSignature: ' + (sigEl ? sigEl.value : '') + '\nDate: ' + new Date().toISOString() + '\nPage: ' + location.href;
+      }
+      var btn = form.querySelector('button[type="submit"]'); btn.disabled = true; btn.textContent = 'Preparing your PDF copy…';
+      try {
+        var JS = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+        var doc = new JS({unit:'pt', format:'a4'});
+        var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 48, y = M;
+        var ascii = function(s){ return String(s).replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/\u2026/g, '...').replace(/[^\x20-\x7E\n]/g, ''); };
+        var line = function(txt, size, style, gap){
+          doc.setFont('times', style || 'normal'); doc.setFontSize(size);
+          var rows = doc.splitTextToSize(ascii(txt), W - 2*M);
+          for (var i = 0; i < rows.length; i++) { if (y > H - M) { doc.addPage(); y = M; } doc.text(rows[i], M, y); y += size * 1.35; }
+          y += (gap || 0);
+        };
+        line(BRAND + ' - ' + TYPE, 16, 'bold', 6);
+        line('Recorded ' + new Date().toLocaleString() + '  |  info.abcfranchise.com.au  |  ABC Franchise Pty Ltd, Sydney', 9, 'normal', 12);
+        if (deed) { line('TERMS OF THE AGREEMENT', 11, 'bold', 4); line(deed.innerText, 9, 'normal', 12); }
+        line('SUBMITTED DETAILS', 11, 'bold', 4);
+        Array.prototype.forEach.call(form.elements, function(el){
+          if (!el.name || el.name.charAt(0) === '_') return;
+          if (el.name === 'signed_agreement_full_text') return;
+          if (el.type === 'hidden' && ['brand','form_type','accepted_date','agreement_version'].indexOf(el.name) < 0) return;
+          var v = el.type === 'checkbox' ? (el.checked ? 'Yes' : 'No') : el.type === 'radio' ? (el.checked ? el.value : null) : el.value;
+          if (v === null || v === '') return;
+          line(el.name.replace(/_/g, ' ') + ':  ' + v, 10, 'normal', 2);
+        });
+        line(' ', 8, 'normal', 4);
+        line('Keep this document for your records. Generated in your browser at the moment of submission.', 8, 'italic', 0);
+        doc.save(ascii(BRAND).replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + TYPE.replace(/[^A-Za-z0-9]+/g, '-') + '-' + new Date().toISOString().slice(0,10) + '.pdf');
+      } catch (err) {}
+      form.dataset.pdfDone = '1';
+      setTimeout(function(){ form.submit(); }, 600);
     });
   })();
 </script>
