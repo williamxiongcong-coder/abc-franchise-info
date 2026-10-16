@@ -413,45 +413,68 @@
     var form = document.querySelector('form[action*="formsubmit"]'); if (!form) return;
     var BRAND = (form.querySelector('input[name="brand"]')||{}).value || 'ABC Franchise';
     var TYPE = (form.querySelector('input[name="form_type"]')||{}).value === 'confidentiality-agreement' ? 'Confidentiality Agreement' : 'Franchise Application';
-    var ver = document.createElement('input'); ver.type = 'hidden'; ver.name = 'agreement_version';
-    ver.value = TYPE + ' terms, page version 2026-10-16'; form.appendChild(ver);
+
     form.addEventListener('submit', function(e){
       if (form.dataset.pdfDone) return;
       e.preventDefault();
 
-      var deed = document.querySelector('article');
-      if (TYPE === 'Confidentiality Agreement' && deed) {
+      if (TYPE === 'Confidentiality Agreement') {
         var sigEl = form.querySelector('input[name="electronic_signature"]');
-        var ft = form.querySelector('textarea[name="signed_agreement_full_text"]');
-        if (!ft) { ft = document.createElement('textarea'); ft.name = 'signed_agreement_full_text'; ft.style.display = 'none'; form.appendChild(ft); }
-        ft.value = deed.innerText + '\n\n--- ELECTRONICALLY ACCEPTED ---\nSignature: ' + (sigEl ? sigEl.value : '') + '\nDate: ' + new Date().toISOString();
+        var sc = form.querySelector('input[name="signed_confirmation"]');
+        if (!sc) { sc = document.createElement('input'); sc.type = 'hidden'; sc.name = 'signed_confirmation'; form.appendChild(sc); }
+        sc.value = 'Signed by ' + (sigEl ? sigEl.value : '') + ' on ' + new Date().toISOString() + ' | Terms page version 2026-10-16';
       }
       var btn = form.querySelector('button[type="submit"]'); btn.disabled = true; btn.textContent = 'Preparing your PDF copy…';
       try {
         var JS = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
         var doc = new JS({unit:'pt', format:'a4'});
-        var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 48, y = M;
+        var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 52, y = 0;
+        var NAVY = [10,26,55], GRAY = [100,108,120], INKC = [25,28,34], LGRAY = [205,210,216];
         var ascii = function(s){ return String(s).replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/\u2026/g, '...').replace(/[^\x20-\x7E\n]/g, ''); };
-        var line = function(txt, size, style, gap){
-          doc.setFont('times', style || 'normal'); doc.setFontSize(size);
+        var need = function(hh){ if (y + hh > H - 60) { doc.addPage(); y = 60; } };
+        var text = function(txt, size, font, style, col, lh){
+          doc.setFont(font, style); doc.setFontSize(size); doc.setTextColor(col[0], col[1], col[2]);
           var rows = doc.splitTextToSize(ascii(txt), W - 2*M);
-          for (var i = 0; i < rows.length; i++) { if (y > H - M) { doc.addPage(); y = M; } doc.text(rows[i], M, y); y += size * 1.35; }
-          y += (gap || 0);
+          for (var i = 0; i < rows.length; i++) { need(size*(lh||1.45)); doc.text(rows[i], M, y); y += size*(lh||1.45); }
         };
-        line(BRAND + ' - ' + TYPE, 16, 'bold', 6);
-        line('Recorded ' + new Date().toLocaleString() + '  |  info.abcfranchise.com.au  |  ABC Franchise Pty Ltd, Sydney', 9, 'normal', 12);
-        if (deed) { line('TERMS OF THE AGREEMENT', 11, 'bold', 4); line(deed.innerText, 9, 'normal', 12); }
-        line('SUBMITTED DETAILS', 11, 'bold', 4);
+        y = 70;
+        text(ascii(BRAND).toUpperCase(), 19, 'helvetica', 'bold', NAVY, 1.2); y += 1;
+        text(TYPE, 11.5, 'helvetica', 'normal', GRAY, 1.25); y += 6;
+        doc.setDrawColor(NAVY[0],NAVY[1],NAVY[2]); doc.setLineWidth(1.2); doc.line(M, y, W - M, y); y += 20;
+        text('Recorded ' + new Date().toLocaleString() + '      |      info.abcfranchise.com.au      |      ABC Franchise Pty Ltd, Sydney', 8.5, 'helvetica', 'normal', GRAY, 1.3); y += 14;
+        var deedEl = document.querySelector('article');
+        if (deedEl) {
+          text('TERMS OF THE AGREEMENT', 10.5, 'helvetica', 'bold', NAVY, 1.35); y += 6;
+          text(deedEl.innerText, 8.8, 'times', 'normal', INKC, 1.52); y += 14;
+        }
+        text('SUBMITTED DETAILS', 10.5, 'helvetica', 'bold', NAVY, 1.35); y += 8;
+        var LABELW = 170;
         Array.prototype.forEach.call(form.elements, function(el){
           if (!el.name || el.name.charAt(0) === '_') return;
-          if (el.name === 'signed_agreement_full_text') return;
-          if (el.type === 'hidden' && ['brand','form_type','accepted_date','agreement_version'].indexOf(el.name) < 0) return;
+          if (el.type === 'hidden' && ['brand','form_type','accepted_date'].indexOf(el.name) < 0) return;
           var v = el.type === 'checkbox' ? (el.checked ? 'Yes' : 'No') : el.type === 'radio' ? (el.checked ? el.value : null) : el.value;
           if (v === null || v === '') return;
-          line(el.name.replace(/_/g, ' ') + ':  ' + v, 10, 'normal', 2);
+          var isSig = el.name === 'electronic_signature';
+          var vSize = isSig ? 12.5 : 9.5, vLH = isSig ? 15 : 12;
+          doc.setFont(isSig ? 'times' : 'helvetica', isSig ? 'italic' : 'normal'); doc.setFontSize(vSize);
+          var valRows = doc.splitTextToSize(ascii(String(v)), W - 2*M - LABELW);
+          var rowH = Math.max(18, valRows.length * vLH + 7);
+          need(rowH + 4);
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7.8); doc.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
+          doc.text(el.name.replace(/_/g, ' ').toUpperCase(), M, y);
+          doc.setFont(isSig ? 'times' : 'helvetica', isSig ? 'italic' : 'normal'); doc.setFontSize(vSize); doc.setTextColor(INKC[0],INKC[1],INKC[2]);
+          for (var i = 0; i < valRows.length; i++) { doc.text(valRows[i], M + LABELW, y + i*vLH); }
+          y += rowH - 7;
+          doc.setDrawColor(LGRAY[0],LGRAY[1],LGRAY[2]); doc.setLineWidth(0.5); doc.line(M, y, W - M, y); y += 13;
         });
-        line(' ', 8, 'normal', 4);
-        line('Keep this document for your records. Generated in your browser at the moment of submission.', 8, 'italic', 0);
+        y += 4;
+        text('Keep this document for your records. Generated in your browser at the moment of submission.', 7.5, 'helvetica', 'italic', GRAY, 1.35);
+        var np = doc.getNumberOfPages();
+        for (var p = 1; p <= np; p++) {
+          doc.setPage(p); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(155,160,168);
+          doc.text('ABC Franchise Pty Ltd  -  Confidential', M, H - 30);
+          doc.text('Page ' + p + ' of ' + np, W - M, H - 30, {align:'right'});
+        }
         doc.save(ascii(BRAND).replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + TYPE.replace(/[^A-Za-z0-9]+/g, '-') + '-' + new Date().toISOString().slice(0,10) + '.pdf');
       } catch (err) {}
       form.dataset.pdfDone = '1';
