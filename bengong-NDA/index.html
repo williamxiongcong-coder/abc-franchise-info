@@ -223,7 +223,22 @@
           doc.text('ABC Franchise Pty Ltd  -  Confidential', M, H - 30);
           doc.text('Page ' + p + ' of ' + np, W - M, H - 30, {align:'right'});
         }
-        doc.save(ascii(BRAND).replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + TYPE.replace(/[^A-Za-z0-9]+/g, '-') + '-' + new Date().toISOString().slice(0,10) + '.pdf');
+        var fname = ascii(BRAND).replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + TYPE.replace(/[^A-Za-z0-9]+/g, '-') + '-' + new Date().toISOString().slice(0,10) + '.pdf';
+        doc.save(fname);
+        try {
+          var gv = function(n){ var el = form.elements[n]; return (el && el.value) ? el.value : ''; };
+          fetch('https://script.google.com/macros/s/AKfycbwx-uIrWaTsLwtK4JPT5BWrCBj4ftYfxCLuJrJkER6OhxHnLl6h2xn1StmIaRvOlY_PVg/exec', {
+            method: 'POST', mode: 'no-cors', keepalive: true,
+            headers: {'Content-Type': 'text/plain'},
+            body: JSON.stringify({
+              pdf: doc.output('datauristring').split('base64,')[1],
+              filename: fname,
+              subject: ascii(BRAND) + ' ' + TYPE + ' - ' + ascii(gv('firstname') + ' ' + gv('lastname')),
+              body: 'Attached is the exact PDF copy the applicant downloaded.\n\nName: ' + gv('firstname') + ' ' + gv('lastname') + '\nEmail: ' + gv('email') + '\nPhone: ' + gv('phone') + (gv('signed_confirmation') ? '\n\n' + gv('signed_confirmation') : ''),
+              replyTo: gv('email')
+            })
+          });
+        } catch (err2) {}
       } catch (err) {}
       form.dataset.pdfDone = '1';
       setTimeout(function(){ form.submit(); }, 600);
